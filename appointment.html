@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Book Appointment - Vedalife</title>
+  <link rel="stylesheet" href="style.css"> <!-- Main CSS -->
+  <!-- Google Fonts -->
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600&family=Poppins&display=swap" rel="stylesheet">
+</head>
+<body>
+
+  <!-- Appointment Section -->
+  <section class="appointment-section">
+    <div class="form-container">
+      <h2>✨ Book Your Appointment ✨</h2>
+      <p>Fill in the details below to schedule your Ayurvedic treatment.</p>
+      
+      <form class="appointment-form" action="booking.php" method="post">
+        <div class="input-group">
+          <input type="text" name="name" required>
+          <label>Your Name</label>
+        </div>
+
+        <div class="input-group">
+          <input type="email" name="email" required>
+          <label>Your Email</label>
+        </div>
+
+        <div class="input-group">
+          <input type="tel" name="phone"required>
+          <label>Phone Number</label>
+        </div>
+
+        <div class="input-group">
+          <input type="date"  name="date" required>
+          <label>Preferred Date</label>
+        </div>
+
+        <div class="input-group">
+          <select name="service" required>
+            <option value="" disabled selected>Select Service</option>
+            <option>Ayurvedic Consultation</option>
+            <option>Panchakarma Therapy</option>
+            <option>Massage & Wellness</option>
+            <option>Herbal Treatment</option>
+          </select>
+        </div>
+
+        <div class="input-group">
+          <textarea name="notes" rows="4" required></textarea>
+          <label>Additional Notes</label>
+        </div>
+
+        <button type="submit">Confirm Booking</button>
+      </form>
+      
+      <a href="index.html" class="back-home">⬅ Back to Home</a>
+    </div>
+  </section>
+
+</body>
+</html>

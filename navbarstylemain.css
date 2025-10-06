@@ -1,0 +1,191 @@
+/* Navbar - Modern Premium */
+:root {
+    --primary-color: #2c6e49;
+    --primary-light: #4c956c;
+    --primary-dark: #1a4731;
+    --secondary-color: #ffc145;
+    --accent-color: #ff6b6b;
+    --text-dark: #2d3142;
+    --text-light: #4f5d75;
+    --background-light: #f9f7f3;
+    --background-white: #ffffff;
+    --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.05);
+    --shadow-medium: 0 15px 35px rgba(0, 0, 0, 0.1);
+    --transition-smooth: all 0.3s ease;
+}
+
+/* Global */
+html {
+    -webkit-text-size-adjust: 100%;
+    -moz-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+    font-size: 100%;
+}
+
+* {
+    font-family: 'Poppins', sans-serif;
+    margin: 0; padding: 0;
+    box-sizing: border-box;
+    outline: none; border: none;
+    text-decoration: none !important;
+    text-transform: capitalize;
+    transition: var(--transition-smooth);
+}
+
+/* Header / Navbar */
+.header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 1.5rem 9%;
+    background: rgba(255, 255, 255, 0.95);
+    backdrop-filter: blur(10px);
+    box-shadow: var(--shadow-soft);
+    border-bottom: 1px solid rgba(0,0,0,0.05);
+}
+
+/* Logo */
+.header .logo {
+    font-size: 1.8rem;
+    font-weight: 700;
+    color: var(--primary-dark);
+    font-family: 'Cormorant Garamond', serif;
+    letter-spacing: 1px;
+}
+
+/* Navbar links */
+.header .navbar {
+    display: flex;
+    align-items: center;
+}
+
+.header .navbar a {
+    position: relative;
+    font-size: 0.875rem; /* Consistent 14px */
+    margin: 0 1.2rem;
+    color: var(--text-dark);
+    transition: var(--transition-smooth);
+    letter-spacing: 0.5px;
+    font-weight: 500;
+    text-transform: uppercase;
+}
+
+.header .navbar a i {
+    margin-right: 0.5rem;
+    color: var(--primary-color);
+    transition: var(--transition-smooth);
+}
+
+/* Navbar hover effects */
+.header .navbar a:hover {
+    color: var(--primary-color);
+}
+
+.header .navbar a:hover i {
+    transform: translateY(-2px);
+}
+
+/* Navbar underline animation */
+.header .navbar a::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    bottom: -5px;
+    width: 0%;
+    height: 2px;
+    background: var(--primary-color);
+    transition: width 0.3s ease;
+    opacity: 0.7;
+}
+
+.header .navbar a:hover::after,
+.header .navbar a.active::after {
+    width: 100%;
+}
+
+/* Nav buttons */
+.nav-buttons {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+}
+
+.nav-buttons .btn {
+    padding: 0.6rem 1.4rem;
+    font-size: 0.85rem;
+    border-radius: 30px;
+    cursor: pointer;
+    text-decoration: none !important;
+    font-weight: 500;
+    letter-spacing: 0.5px;
+    box-shadow: var(--shadow-soft);
+    text-transform: uppercase;
+    transition: all 0.3s ease;
+}
+
+/* Login & Signup buttons */
+.nav-buttons .login-btn {
+    background: #fff;
+    color: var(--green);
+    border: 2px solid var(--green);
+}
+.nav-buttons .login-btn:hover {
+    background: var(--green);
+    color: #fff;
+}
+.nav-buttons .signup-btn {
+    background: var(--green);
+    color: #fff;
+    border: 2px solid var(--green);
+}
+.nav-buttons .signup-btn:hover {
+    background: #218838;
+}
+
+/* Profile, Cart, Logout buttons */
+.nav-buttons .btn:not(.login-btn):not(.signup-btn) {
+    border: none;
+    background: none;
+    padding: 0.6rem;
+    border-radius: 0.4rem;
+    transition: background 0.2s ease, color 0.2s ease, transform 0.2s ease;
+}
+
+/* Hover effect: Profile & Cart */
+.nav-buttons .btn:not(.login-btn):not(.signup-btn):not(.btn-danger):hover {
+    background: rgba(40, 167, 69, 0.1);
+    color: var(--green);
+}
+
+/* Logout button */
+.nav-buttons .btn.btn-danger {
+    background: none;
+    color: var(--green);
+}
+
+.nav-buttons .btn.btn-danger:hover {
+    background: rgba(252, 2, 2, 0.1);
+    transform: scale(1.1);
+}
+
+/* Cart badge */
+.cart-badge {
+    position: absolute;
+    top: -5px;
+    right: -10px;
+    background: red;
+    color: white;
+    font-size: 0.7rem;
+    padding: 0.15rem 0.4rem;
+    border-radius: 50%;
+    font-weight: bold;
+}
+
+.navbar a.active {
+  color: #28a745; /* green or any highlight color */
+  font-weight: bold;
+  border-bottom: 2px solid #28a745;
+}
