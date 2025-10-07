@@ -4,11 +4,12 @@ requireAdminLogin();
 
 $admin = getCurrentAdmin();
 $conn = getAdminDbConnection();
+require_once __DIR__ . '/../email_config.php';
 
 $message = '';
 $message_type = '';
 
-// Handle appointment status update
+// Handle appointment status update via dropdown
 if ($_POST['action'] ?? '' === 'update_status' && isset($_POST['booking_id'], $_POST['status'])) {
     $booking_id = (int)$_POST['booking_id'];
     $status = $_POST['status'];
@@ -20,8 +21,80 @@ if ($_POST['action'] ?? '' === 'update_status' && isset($_POST['booking_id'], $_
         $message = "Appointment status updated successfully!";
         $message_type = "success";
         logAdminActivity('appointment_status_update', "Updated appointment ID: $booking_id status to: $status");
+        
+        // Send email notification for key statuses
+        if (in_array($status, ['confirmed','cancelled','completed'], true)) {
+            $q = $conn->prepare("SELECT b.*, u.email AS user_email, u.username FROM booking b JOIN users u ON b.user_id = u.id WHERE b.id = ? LIMIT 1");
+            $q->bind_param('i', $booking_id);
+            if ($q->execute()) {
+                $ap = $q->get_result()->fetch_assoc();
+                if ($ap) {
+                    $email = $ap['user_email'] ?: $ap['email'];
+                    if ($email) {
+                        sendAppointmentStatusEmail($email, [
+                            'status' => $status,
+                            'customer_name' => $ap['name'] ?: $ap['username'],
+                            'service' => $ap['service'],
+                            'preferred_date' => $ap['preferred_date'],
+                            'appointment_id' => $ap['id'] ?? null,
+                            'phone' => $ap['phone'] ?? '',
+                            'notes' => $ap['notes'] ?? ''
+                        ]);
+                    }
+                }
+            }
+        }
+        // Redirect to clear any status filter (e.g., pending) so updated appointment remains visible
+        header('Location: appointments.php');
+        exit;
     } else {
         $message = "Error updating appointment status.";
+        $message_type = "danger";
+    }
+}
+
+// Quick actions: accept/reject appointment with email notification
+if (isset($_POST['action']) && in_array($_POST['action'], ['accept_appointment','reject_appointment'], true) && isset($_POST['booking_id'])) {
+    $booking_id = (int)$_POST['booking_id'];
+    $newStatus = $_POST['action'] === 'accept_appointment' ? 'confirmed' : 'cancelled';
+
+    $q = $conn->prepare("SELECT b.*, u.email AS user_email, u.username FROM booking b JOIN users u ON b.user_id = u.id WHERE b.id = ? LIMIT 1");
+    $q->bind_param('i', $booking_id);
+    if ($q->execute()) {
+        $ap = $q->get_result()->fetch_assoc();
+        if ($ap) {
+            $stmt = $conn->prepare("UPDATE booking SET status = ?, updated_at = NOW() WHERE id = ?");
+            $stmt->bind_param("si", $newStatus, $booking_id);
+            if ($stmt->execute()) {
+                $message = "Appointment " . ($newStatus === 'confirmed' ? 'accepted and confirmed' : 'rejected and cancelled') . " successfully!";
+                $message_type = "success";
+                logAdminActivity('appointment_quick_update', "Set appointment ID: $booking_id to $newStatus");
+                // Send email
+                $email = $ap['user_email'] ?: $ap['email'];
+                if ($email) {
+                    sendAppointmentStatusEmail($email, [
+                        'status' => $newStatus,
+                        'customer_name' => $ap['name'] ?: $ap['username'],
+                        'service' => $ap['service'],
+                        'preferred_date' => $ap['preferred_date'],
+                        'appointment_id' => $ap['id'] ?? null,
+                        'phone' => $ap['phone'] ?? '',
+                        'notes' => $ap['notes'] ?? ''
+                    ]);
+                }
+                // Redirect to clear filters so updated appointment stays visible
+                header('Location: appointments.php');
+                exit;
+            } else {
+                $message = "Error updating appointment status.";
+                $message_type = "danger";
+            }
+        } else {
+            $message = "Appointment not found.";
+            $message_type = "danger";
+        }
+    } else {
+        $message = "Error fetching appointment.";
         $message_type = "danger";
     }
 }
@@ -298,19 +371,31 @@ while ($service = $services->fetch_assoc()) {
                                     </td>
                                     <td>
                                         <div class="btn-group" role="group">
-                                            <button class="btn btn-sm btn-outline-primary" 
+                                            <form method="POST" class="d-inline">
+                                                <input type="hidden" name="booking_id" value="<?php echo $appointment['id']; ?>">
+                                                <button type="submit" name="action" value="accept_appointment" class="btn btn-sm btn-outline-success" title="Accept / Confirm" <?php echo $appointment['status']==='confirmed' ? 'disabled' : ''; ?>>
+                                                    <i class="fas fa-check"></i>
+                                                </button>
+                                            </form>
+                                            <form method="POST" class="d-inline ms-1">
+                                                <input type="hidden" name="booking_id" value="<?php echo $appointment['id']; ?>">
+                                                <button type="submit" name="action" value="reject_appointment" class="btn btn-sm btn-outline-warning" title="Reject / Cancel" <?php echo $appointment['status']==='cancelled' ? 'disabled' : ''; ?>>
+                                                    <i class="fas fa-times"></i>
+                                                </button>
+                                            </form>
+                                            <button class="btn btn-sm btn-outline-primary ms-1" 
                                                     data-bs-toggle="modal" 
                                                     data-bs-target="#viewModal"
                                                     onclick="viewAppointment(<?php echo htmlspecialchars(json_encode($appointment)); ?>)">
                                                 <i class="fas fa-eye"></i>
                                             </button>
-                                            <button class="btn btn-sm btn-outline-success"
+                                            <button class="btn btn-sm btn-outline-secondary ms-1"
                                                     data-bs-toggle="modal" 
                                                     data-bs-target="#notesModal"
                                                     onclick="editNotes(<?php echo $appointment['id']; ?>, '<?php echo htmlspecialchars($appointment['notes']); ?>')">
-                                                <i class="fas fa-edit"></i>
+                                                <i class="fas fa-sticky-note"></i>
                                             </button>
-                                            <button class="btn btn-sm btn-outline-danger"
+                                            <button class="btn btn-sm btn-outline-danger ms-1"
                                                     onclick="deleteAppointment(<?php echo $appointment['id']; ?>, '<?php echo htmlspecialchars($appointment['name']); ?>')">
                                                 <i class="fas fa-trash"></i>
                                             </button>

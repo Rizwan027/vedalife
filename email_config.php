@@ -51,6 +51,19 @@ class EmailSender {
     }
     
     /**
+     * Send appointment status email (accepted/confirmed, rejected/cancelled, completed)
+     */
+    public function sendAppointmentStatusEmail($to_email, $data) {
+        $subject = $this->getAppointmentSubject($data);
+        $message = $this->getAppointmentStatusTemplate($data);
+        if ($this->sendWithSMTP($to_email, $subject, $message)) {
+            return true;
+        } else {
+            return $this->sendWithPHPMail($to_email, $subject, $message);
+        }
+    }
+    
+    /**
      * Generate reset link
      */
     private function getResetLink($token) {
@@ -356,6 +369,113 @@ class EmailSender {
                     <p>Thank you for choosing VedaLife for your wellness journey!</p>
                     <p>If you have any questions, please contact our support team.</p>
                     <p><strong>Email:</strong> support@vedalife.com | <strong>Phone:</strong> +91 73829 47582</p>
+                </div>
+            </div>
+        </body>
+        </html>';
+    }
+    
+    /**
+     * Build appointment subject line depending on status
+     */
+    private function getAppointmentSubject($data) {
+        $status = strtolower(trim($data['status'] ?? ''));
+        $service = $data['service'] ?? 'your appointment';
+        if ($status === 'confirmed') return "Appointment Confirmed - " . $service;
+        if ($status === 'completed') return "Appointment Completed - " . $service;
+        if ($status === 'cancelled' || $status === 'rejected') return "Appointment Update - " . $service;
+        return "Appointment Update - " . $service;
+    }
+    
+    /**
+     * Appointment status email template
+     */
+    private function getAppointmentStatusTemplate($data) {
+        $status = strtolower(trim($data['status'] ?? ''));
+        $customer = htmlspecialchars($data['customer_name'] ?? 'Customer');
+        $service = htmlspecialchars($data['service'] ?? 'Appointment');
+        $apptId = isset($data['appointment_id']) ? (int)$data['appointment_id'] : null;
+        $phone = htmlspecialchars($data['phone'] ?? '');
+        $dateStr = '';
+        if (!empty($data['preferred_date'])) {
+            $ts = strtotime($data['preferred_date']);
+            $dateStr = $ts ? date('F j, Y', $ts) : htmlspecialchars($data['preferred_date']);
+        }
+        $notes = isset($data['notes']) && $data['notes'] !== '' ? nl2br(htmlspecialchars($data['notes'])) : '';
+        $reason = isset($data['reason']) && $data['reason'] !== '' ? nl2br(htmlspecialchars($data['reason'])) : '';
+        $headline = 'Appointment Update';
+        $lead = 'Your appointment status has been updated.';
+        $tip = '';
+        if ($status === 'confirmed') {
+            $headline = 'Appointment Confirmed ✅';
+            $lead = 'We are happy to confirm your appointment.';
+            $tip = 'Please arrive 10 minutes early. Bring any prior medical records if applicable.';
+        } elseif ($status === 'cancelled' || $status === 'rejected') {
+            $headline = 'Appointment Update ❗';
+            $lead = 'We are sorry to inform you that your appointment could not be scheduled.';
+            $tip = 'You can rebook another date that suits you.';
+        } elseif ($status === 'completed') {
+            $headline = 'Appointment Completed ✔️';
+            $lead = 'Thank you for visiting VedaLife.';
+            $tip = 'We hope you had a great experience. We would appreciate your feedback!';
+        }
+        $base = $this->getBaseUrl();
+        $site = preg_replace('~\/admin\/?$~','',$base);
+        $rebookUrl = $site . '/appointment.php';
+        $helpUrl = $site;
+        return '
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Appointment Update</title>
+            <style>
+                body { font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; max-width: 650px; margin: 0 auto; background: #f8f9fa; }
+                .container { background: #fff; margin: 20px; border-radius: 15px; overflow: hidden; box-shadow: 0 8px 24px rgba(0,0,0,0.08); }
+                .header { background: linear-gradient(135deg, #2c6e49 0%, #4c956c 100%); color: #fff; padding: 28px; text-align: center; }
+                .content { padding: 28px; }
+                .badge { display: inline-block; padding: 6px 12px; border-radius: 20px; font-weight: 600; font-size: 12px; }
+                .badge.success { background: #e6f4ea; color: #1e7e34; border: 1px solid #cdebd6; }
+                .badge.info { background: #e7f5ff; color: #1c7ed6; border: 1px solid #a5d8ff; }
+                .badge.danger { background: #fdecea; color: #842029; border: 1px solid #f5c2c7; }
+                .badge.primary { background: #eef2ff; color: #3730a3; border: 1px solid #c7d2fe; }
+                .footer { background: #f8f9fa; color: #666; padding: 20px; text-align: center; font-size: 13px; }
+                .info { background: #f8fffe; padding: 16px; border-left: 4px solid #4c956c; border-radius: 8px; margin-top: 16px; }
+                .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+                .cta { display:inline-block; background: linear-gradient(135deg,#2c6e49,#4c956c); color:#fff; text-decoration:none; padding:10px 18px; border-radius:24px; font-weight:600; margin-right:10px; }
+                @media (max-width: 520px){ .grid { grid-template-columns: 1fr; } }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h2>🌿 VedaLife</h2>
+                    <p>'.$headline.'</p>
+                </div>
+                <div class="content">
+                    <p>Dear '.$customer.',</p>
+                    <p>'.$lead.'</p>
+                    <p><span class="badge '.($status === 'confirmed' ? 'success' : ($status === 'cancelled' || $status === 'rejected' ? 'danger' : ($status === 'completed' ? 'primary' : 'info'))).'">Status: '.ucfirst($status).'</span></p>
+                    <div class="info">
+                        <div class="grid">
+                            '.($apptId ? '<p><strong>Appointment ID:</strong> #'.$apptId.'</p>' : '').'
+                            '.($dateStr !== '' ? '<p><strong>Date:</strong> '.$dateStr.'</p>' : '').'
+                            <p><strong>Service:</strong> '.$service.'</p>
+                            '.($phone !== '' ? '<p><strong>Phone:</strong> '.$phone.'</p>' : '').'
+                        </div>
+                        '.($notes !== '' ? '<p style=\"margin-top:10px;\"><strong>Notes:</strong><br>'.$notes.'</p>' : '').'\n                        '.(($status === 'cancelled' || $status === 'rejected') && $reason !== '' ? '<p style=\"margin-top:10px;\"><strong>Reason for Rejection:</strong><br>'.$reason.'</p>' : '').'\n                    </div>
+                    </div>
+                    '.($tip !== '' ? '<p style="margin-top:12px; color:#2d3142;"><em>'.$tip.'</em></p>' : '').'
+                    <p style="margin-top:16px;">
+                        '.($status === 'confirmed' ? '<a href="'.$helpUrl.'" class="cta">View Details</a>' : '').'
+                        '.($status === 'cancelled' || $status === 'rejected' ? '<a href="'.$rebookUrl.'" class="cta">Rebook Now</a>' : '').'
+                        '.($status === 'completed' ? '<a href="'.$helpUrl.'" class="cta">Visit VedaLife</a>' : '').'
+                    </p>
+                    <p>Warm regards,<br>VedaLife Team</p>
+                </div>
+                <div class="footer">
+                    <p>This email was sent by VedaLife Appointment System.</p>
                 </div>
             </div>
         </body>
@@ -692,5 +812,13 @@ function sendPasswordResetEmail($email, $token) {
 function sendWelcomeEmail($email, $username) {
     $emailSender = new EmailSender();
     return $emailSender->sendWelcomeEmail($email, $username);
+}
+
+/**
+ * Simple function: send appointment status email
+ */
+function sendAppointmentStatusEmail($email, $data) {
+    $emailSender = new EmailSender();
+    return $emailSender->sendAppointmentStatusEmail($email, $data);
 }
 ?>
