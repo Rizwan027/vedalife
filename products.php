@@ -3,6 +3,19 @@ session_start();
 
 // Check if user is logged in for cart functionality
 $isLoggedIn = isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
+
+// Fetch active products from database
+$products = [];
+$mysqli = @new mysqli('localhost', 'root', '', 'vedalife');
+if (!$mysqli->connect_error) {
+  $result = $mysqli->query("SELECT id, name, description, price, image, category, stock, created_at FROM products WHERE is_active = 1 ORDER BY name ASC");
+  if ($result) {
+    while ($row = $result->fetch_assoc()) {
+      $products[] = $row;
+    }
+    $result->free();
+  }
+}
 ?>
 <!DOCTYPE html>
 <html lang="en">
@@ -419,12 +432,25 @@ $isLoggedIn = isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
       font-size: 0.9rem;
     }
     
-    .product-rating span {
+.product-rating span {
       color: var(--text-light);
       font-size: 0.85rem;
       font-weight: 600;
       margin-left: 0.5rem;
     }
+
+    /* Stock availability indicator */
+    .stock-indicator {
+      font-size: 0.75rem;
+      padding: 0.2rem 0.6rem;
+      border-radius: 12px;
+      font-weight: 600;
+      display: inline-block;
+      margin-top: 0.3rem;
+    }
+    .stock-good { background: #e6f4ea; color: #1e7e34; border: 1px solid #cdebd6; }
+    .stock-low { background: #fff3cd; color: #856404; border: 1px solid #ffe8a1; }
+    .stock-out { background: #fdecea; color: #842029; border: 1px solid #f5c2c7; }
 
     .product-actions {
       display: flex;
@@ -715,10 +741,10 @@ $isLoggedIn = isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
     <div class="category-filter">
       <button class="category-btn active" data-category="all">All Products</button>
       <button class="category-btn" data-category="oils">Herbal Oils</button>
-      <button class="category-btn" data-category="powders">Powders</button>
-      <button class="category-btn" data-category="supplements">Supplements</button>
+      <button class="category-btn" data-category="haircare">Haircare</button>
       <button class="category-btn" data-category="skincare">Skincare</button>
-      <button class="category-btn" data-category="teas">Herbal Teas</button>
+      <button class="category-btn" data-category="supplements">Supplements</button>
+      <button class="category-btn" data-category="food">Food</button>
     </div>
     
     <div class="sort-options">
@@ -733,199 +759,72 @@ $isLoggedIn = isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
   </div>
 
   <div class="row g-4" id="productsGrid">
-    <!-- Enhanced Product 1 -->
-    <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="100" data-category="oils">
-      <div class="product-card">
-        <div class="product-image-wrapper">
-          <span class="product-badge bestseller">Best Seller</span>
-          <img src="images/milk.png" alt="Herbal Massage Oil">
-        </div>
-        <div class="product-content">
-          <h5 class="product-title">Premium Herbal Massage Oil</h5>
-          <p class="product-description">Authentic Ayurvedic blend with sesame oil, ashwagandha, and 12 traditional herbs for deep muscle relaxation and stress relief.</p>
-          <div class="product-meta">
-            <div class="product-price">₹499 <span class="price-original">₹699</span></div>
-            <div class="product-rating">
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star-half-alt"></i>
-              <span>(4.5)</span>
+<?php if (!empty($products)): ?>
+      <?php $delay = 100; foreach ($products as $p): $delay += 50; ?>
+        <?php
+          $name = htmlspecialchars($p['name']);
+          $desc = htmlspecialchars($p['description']);
+          $price = number_format((float)$p['price'], 0);
+          $category = htmlspecialchars(strtolower((string)($p['category'] ?? '')));
+          $img = trim((string)$p['image']);
+          if ($img !== '' && !preg_match('~^https?://~i', $img)) {
+            $img = ltrim(str_replace('\\', '/', $img), '/');
+          }
+          $createdAt = isset($p['created_at']) ? strtotime($p['created_at']) : false;
+          $isNew = $createdAt ? ($createdAt >= (time() - 30*24*60*60)) : false;
+          $stock = (int)($p['stock'] ?? 0);
+          if ($stock <= 0) { $stockClass = 'stock-out'; $stockText = 'Out of Stock'; }
+          elseif ($stock < 10) { $stockClass = 'stock-low'; $stockText = 'Low Stock'; }
+          else { $stockClass = 'stock-good'; $stockText = 'In Stock'; }
+        ?>
+        <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="<?= $delay ?>" data-category="<?= $category !== '' ? $category : 'others' ?>">
+          <div class="product-card">
+<div class="product-image-wrapper">
+              <?php if ($isNew): ?>
+                <span class="product-badge new">New</span>
+              <?php endif; ?>
+              <img src="<?= $img !== '' ? htmlspecialchars($img) : 'images/placeholder-product.png' ?>" alt="<?= $name ?>" onerror="this.src='images/placeholder-product.png'">
+            </div>
+            <div class="product-content">
+              <h5 class="product-title"><?= $name ?></h5>
+              <?php if (!empty($desc)): ?>
+              <p class="product-description"><?= $desc ?></p>
+              <?php endif; ?>
+<div class="product-meta">
+                <div class="product-price">₹<?= $price ?></div>
+                <div class="product-right" style="display:flex;flex-direction:column;align-items:flex-end;gap:0.25rem;">
+                  <div class="product-rating">
+                  <i class="fas fa-star"></i>
+                  <i class="fas fa-star"></i>
+                  <i class="fas fa-star"></i>
+                  <i class="fas fa-star"></i>
+                  <i class="far fa-star"></i>
+                  <span>(4.0)</span>
+                  </div>
+                  <div class="stock-indicator <?= $stockClass ?>"><?= $stockText ?><?= $stock > 0 ? ' • ' . (int)$stock . ' pcs' : '' ?></div>
+                </div>
+              </div>
+              <div class="product-actions">
+                <?php if($isLoggedIn): ?>
+                  <button class="btn-add-cart add-to-cart" data-product="product-<?= (int)$p['id'] ?>"><i class="fas fa-shopping-cart me-2"></i>Add to Cart</button>
+                  <button class="btn-wishlist" data-product="product-<?= (int)$p['id'] ?>"><i class="far fa-heart"></i></button>
+                <?php else: ?>
+                  <a href="SignUp_LogIn_Form.html" class="btn-add-cart"><i class="fas fa-lock me-2"></i>Login to Purchase</a>
+                <?php endif; ?>
+              </div>
             </div>
           </div>
-          <div class="product-actions">
-            <?php if($isLoggedIn): ?>
-              <button class="btn-add-cart add-to-cart" data-product="herbal-oil"><i class="fas fa-shopping-cart me-2"></i>Add to Cart</button>
-              <button class="btn-wishlist" data-product="herbal-oil"><i class="far fa-heart"></i></button>
-            <?php else: ?>
-              <a href="SignUp_LogIn_Form.html" class="btn-add-cart"><i class="fas fa-lock me-2"></i>Login to Purchase</a>
-            <?php endif; ?>
-          </div>
+        </div>
+      <?php endforeach; ?>
+    <?php else: ?>
+      <div class="col-12">
+        <div class="text-center py-5">
+          <i class="fas fa-box-open fa-3x text-muted mb-3"></i>
+          <h5 class="text-muted">No products available</h5>
+          <p class="text-muted">Please check back later.</p>
         </div>
       </div>
-    </div>
-
-    <!-- Enhanced Product 2 -->
-    <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="200" data-category="powders">
-      <div class="product-card">
-        <div class="product-image-wrapper">
-          <img src="images/neem.png" alt="Neem Detox Powder">
-        </div>
-        <div class="product-content">
-          <h5 class="product-title">Organic Neem Detox Powder</h5>
-          <p class="product-description">Pure neem leaves powder that cleanses toxins, purifies blood, boosts immunity, and supports healthy digestion naturally.</p>
-          <div class="product-meta">
-            <div class="product-price">₹299</div>
-            <div class="product-rating">
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="far fa-star"></i>
-              <span>(4.0)</span>
-            </div>
-          </div>
-          <div class="product-actions">
-            <?php if($isLoggedIn): ?>
-              <button class="btn-add-cart add-to-cart" data-product="neem-powder"><i class="fas fa-shopping-cart me-2"></i>Add to Cart</button>
-              <button class="btn-wishlist" data-product="neem-powder"><i class="far fa-heart"></i></button>
-            <?php else: ?>
-              <a href="SignUp_LogIn_Form.html" class="btn-add-cart"><i class="fas fa-lock me-2"></i>Login to Purchase</a>
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- Enhanced Product 3 -->
-    <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="300" data-category="supplements">
-      <div class="product-card">
-        <div class="product-image-wrapper">
-          <span class="product-badge new">New</span>
-          <img src="images/chyawanprash.png" alt="Premium Chyawanprash">
-        </div>
-        <div class="product-content">
-          <h5 class="product-title">Premium Chyawanprash</h5>
-          <p class="product-description">Traditional Ayurvedic superfood with over 40 potent herbs including amla, ashwagandha, and shatavari for immunity and vitality.</p>
-          <div class="product-meta">
-            <div class="product-price">₹599 <span class="price-original">₹750</span></div>
-            <div class="product-rating">
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <span>(5.0)</span>
-            </div>
-          </div>
-          <div class="product-actions">
-            <?php if($isLoggedIn): ?>
-              <button class="btn-add-cart add-to-cart" data-product="chyawanprash"><i class="fas fa-shopping-cart me-2"></i>Add to Cart</button>
-              <button class="btn-wishlist" data-product="chyawanprash"><i class="far fa-heart"></i></button>
-            <?php else: ?>
-              <a href="SignUp_LogIn_Form.html" class="btn-add-cart"><i class="fas fa-lock me-2"></i>Login to Purchase</a>
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Enhanced Product 4 -->
-    <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="100" data-category="supplements">
-      <div class="product-card">
-        <div class="product-image-wrapper">
-          <img src="images/ashwagandha.png" alt="Ashwagandha Capsules">
-        </div>
-        <div class="product-content">
-          <h5 class="product-title">Pure Ashwagandha Capsules</h5>
-          <p class="product-description">Premium natural adaptogen extract that reduces stress, anxiety, and cortisol levels while boosting energy and mental clarity.</p>
-          <div class="product-meta">
-            <div class="product-price">₹399</div>
-            <div class="product-rating">
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star-half-alt"></i>
-              <span>(4.3)</span>
-            </div>
-          </div>
-          <div class="product-actions">
-            <?php if($isLoggedIn): ?>
-              <button class="btn-add-cart add-to-cart" data-product="ashwagandha"><i class="fas fa-shopping-cart me-2"></i>Add to Cart</button>
-              <button class="btn-wishlist" data-product="ashwagandha"><i class="far fa-heart"></i></button>
-            <?php else: ?>
-              <a href="SignUp_LogIn_Form.html" class="btn-add-cart"><i class="fas fa-lock me-2"></i>Login to Purchase</a>
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Enhanced Product 5 -->
-    <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="200" data-category="powders">
-      <div class="product-card">
-        <div class="product-image-wrapper">
-          <span class="product-badge">Popular</span>
-          <img src="images/triphala.png" alt="Triphala Powder">
-        </div>
-        <div class="product-content">
-          <h5 class="product-title">Organic Triphala Powder</h5>
-          <p class="product-description">Sacred blend of three fruits - Amalaki, Bibhitaki, and Haritaki that supports digestion, detoxification, and overall wellness.</p>
-          <div class="product-meta">
-            <div class="product-price">₹350</div>
-            <div class="product-rating">
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star-half-alt"></i>
-              <span>(4.7)</span>
-            </div>
-          </div>
-          <div class="product-actions">
-            <?php if($isLoggedIn): ?>
-              <button class="btn-add-cart add-to-cart" data-product="triphala"><i class="fas fa-shopping-cart me-2"></i>Add to Cart</button>
-              <button class="btn-wishlist" data-product="triphala"><i class="far fa-heart"></i></button>
-            <?php else: ?>
-              <a href="SignUp_LogIn_Form.html" class="btn-add-cart"><i class="fas fa-lock me-2"></i>Login to Purchase</a>
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Enhanced Product 6 -->
-    <div class="col-lg-4 col-md-6" data-aos="fade-up" data-aos-delay="300" data-category="teas">
-      <div class="product-card">
-        <div class="product-image-wrapper">
-          <img src="images/tulsi.png" alt="Holy Basil Tulsi Tea">
-        </div>
-        <div class="product-content">
-          <h5 class="product-title">Organic Tulsi Herbal Tea</h5>
-          <p class="product-description">Premium holy basil leaves blend that calms the mind, reduces stress, strengthens immunity, and promotes peaceful sleep.</p>
-          <div class="product-meta">
-            <div class="product-price">₹199</div>
-            <div class="product-rating">
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="fas fa-star"></i>
-              <i class="far fa-star"></i>
-              <span>(4.2)</span>
-            </div>
-          </div>
-          <div class="product-actions">
-            <?php if($isLoggedIn): ?>
-              <button class="btn-add-cart add-to-cart" data-product="tulsi-tea"><i class="fas fa-shopping-cart me-2"></i>Add to Cart</button>
-              <button class="btn-wishlist" data-product="tulsi-tea"><i class="far fa-heart"></i></button>
-            <?php else: ?>
-              <a href="SignUp_LogIn_Form.html" class="btn-add-cart"><i class="fas fa-lock me-2"></i>Login to Purchase</a>
-            <?php endif; ?>
-          </div>
-        </div>
-      </div>
-    </div>
+    <?php endif; ?>
   </div>
 
   <div class="text-center mt-5" data-aos="fade-up">
@@ -1057,45 +956,77 @@ $isLoggedIn = isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
 
   document.addEventListener('DOMContentLoaded', function() {
     const categoryButtons = document.querySelectorAll('.category-btn');
-    const productCards = document.querySelectorAll('[data-category]');
+    const productCards = document.querySelectorAll('#productsGrid [data-category]');
     const searchInput = document.getElementById('searchInput');
     const sortSelect = document.getElementById('sortProducts');
     const cartCountBadge = document.getElementById('cartCountBadge');
 
+    // Helpers
+    const slugify = (s) => (s || '').toString().toLowerCase().replace(/[^a-z0-9]+/g, '').trim();
+    const normalizeCategorySlug = (raw) => {
+      const s = slugify(raw);
+      if (s.includes('oil')) return 'oils';
+      if (s.includes('hair')) return 'haircare';
+      if (s.includes('skin')) return 'skincare';
+      if (s.includes('supplement')) return 'supplements';
+      if (s.includes('food') || s.includes('edible')) return 'food';
+      if (s === '') return 'others';
+      return s; // fallback to compacted form
+    };
+
+    // Track current filters
+    let selectedCategory = 'all';
+    let searchTerm = '';
+
+    // Initialize from URL (?category=...)
+    const params = new URLSearchParams(window.location.search);
+    const urlCat = params.get('category');
+    if (urlCat) {
+      selectedCategory = normalizeCategorySlug(urlCat);
+      categoryButtons.forEach(btn => {
+        btn.classList.toggle('active', btn.getAttribute('data-category') === selectedCategory);
+      });
+    }
+
     // Initialize cart counter on page load
     updateCartCounter();
 
-    // Enhanced Category filtering
+    // Category filtering (keep buttons visible; only update product grid)
     categoryButtons.forEach(button => {
       button.addEventListener('click', function() {
-        // Remove active class from all buttons
         categoryButtons.forEach(btn => btn.classList.remove('active'));
-        
-        // Add active class to clicked button
         this.classList.add('active');
-        
-        const selectedCategory = this.getAttribute('data-category');
-        filterProducts(selectedCategory);
+        selectedCategory = this.getAttribute('data-category');
+        applyFilters();
       });
     });
 
-    // Search functionality
+    // Debounced search input
+    let searchTimer = null;
     searchInput.addEventListener('input', function() {
-      const searchTerm = this.value.toLowerCase();
-      filterBySearch(searchTerm);
+      clearTimeout(searchTimer);
+      searchTimer = setTimeout(() => {
+        searchTerm = (searchInput.value || '').toLowerCase();
+        applyFilters();
+      }, 150);
     });
 
-    // Sort functionality
+    // Sort functionality (preserve current filter)
     sortSelect.addEventListener('change', function() {
-      const sortType = this.value;
-      sortProducts(sortType);
+      sortProducts(this.value);
     });
 
-    function filterProducts(category) {
+    function applyFilters() {
       productCards.forEach(card => {
-        const cardCategory = card.getAttribute('data-category');
-        
-        if (category === 'all' || cardCategory === category) {
+        const cardRawCat = card.getAttribute('data-category') || '';
+        const cardCatSlug = normalizeCategorySlug(cardRawCat);
+        const title = (card.querySelector('.product-title')?.textContent || '').toLowerCase();
+        const description = (card.querySelector('.product-description')?.textContent || '').toLowerCase();
+
+        const matchesCategory = (selectedCategory === 'all') || (cardCatSlug === selectedCategory);
+        const matchesSearch = (searchTerm === '') || title.includes(searchTerm) || description.includes(searchTerm) || cardRawCat.toLowerCase().includes(searchTerm);
+
+        if (matchesCategory && matchesSearch) {
           card.style.display = 'block';
           card.classList.add('aos-animate');
         } else {
@@ -1104,24 +1035,11 @@ $isLoggedIn = isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
       });
     }
 
-    function filterBySearch(searchTerm) {
-      productCards.forEach(card => {
-        const title = card.querySelector('.product-title').textContent.toLowerCase();
-        const description = card.querySelector('.product-description').textContent.toLowerCase();
-        
-        if (title.includes(searchTerm) || description.includes(searchTerm) || searchTerm === '') {
-          card.style.display = 'block';
-        } else {
-          card.style.display = 'none';
-        }
-      });
-    }
-
     function sortProducts(sortType) {
       const productsGrid = document.getElementById('productsGrid');
-      const products = Array.from(productCards);
-      
-      products.sort((a, b) => {
+      const items = Array.from(productCards);
+
+      items.sort((a, b) => {
         switch(sortType) {
           case 'name':
             return a.querySelector('.product-title').textContent.localeCompare(b.querySelector('.product-title').textContent);
@@ -1138,9 +1056,14 @@ $isLoggedIn = isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
             return 0;
         }
       });
-      
-      products.forEach(product => productsGrid.appendChild(product));
+
+      items.forEach(item => productsGrid.appendChild(item));
+      // Re-apply filters to maintain visibility after reordering
+      applyFilters();
     }
+
+    // Initial apply (for URL category or initial state)
+    applyFilters();
 
     // Cart management functions
     function getCart() {

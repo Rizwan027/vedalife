@@ -1,222 +1,122 @@
 <?php
-// Start session only if not already started
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-header('Content-Type: application/json');
+session_start();
+require_once 'config/connection.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
-    http_response_code(401);
-    echo json_encode(['success' => false, 'message' => 'User not authenticated']);
-    exit;
+    header("Location: login.php?redirect=checkout.php");
+    exit();
 }
 
-// Only allow POST requests
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    http_response_code(405);
-    echo json_encode(['success' => false, 'message' => 'Method not allowed']);
-    exit;
-}
+// Initialize response array
+$response = [
+    'success' => false,
+    'message' => '',
+    'order_id' => null
+];
 
-// Database connection
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "vedalife";
-
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-if ($conn->connect_error) {
-    http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Database connection failed']);
-    exit;
-}
-
-try {
-    // Get POST data
-    $input = json_decode(file_get_contents('php://input'), true);
+// Check if it's a POST request
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    // Get user ID from session
+    $user_id = $_SESSION['user_id'];
+    
+    // Get form data
+    $name = isset($_POST['name']) ? trim($_POST['name']) : '';
+    $email = isset($_POST['email']) ? trim($_POST['email']) : '';
+    $phone = isset($_POST['phone']) ? trim($_POST['phone']) : '';
+    $address = isset($_POST['address']) ? trim($_POST['address']) : '';
+    $city = isset($_POST['city']) ? trim($_POST['city']) : '';
+    $state = isset($_POST['state']) ? trim($_POST['state']) : '';
+    $zip = isset($_POST['zip']) ? trim($_POST['zip']) : '';
+    $payment_method = isset($_POST['payment_method']) ? trim($_POST['payment_method']) : '';
     
     // Validate required fields
-    $required_fields = ['fullName', 'phone', 'address', 'cart', 'total'];
-    foreach ($required_fields as $field) {
-        if (!isset($input[$field]) || empty($input[$field])) {
-            throw new Exception("Missing required field: $field");
-        }
+    if (empty($name) || empty($email) || empty($phone) || empty($address) || empty($city) || empty($state) || empty($zip) || empty($payment_method)) {
+        $response['message'] = 'Please fill in all required fields.';
+        echo json_encode($response);
+        exit();
     }
-    
-    // Optional fields
-    $payment_method = isset($input['paymentMethod']) ? trim($input['paymentMethod']) : 'cod';
-    $notes = isset($input['notes']) ? trim($input['notes']) : '';
-    
-    $user_id = $_SESSION['user_id'];
-    $full_name = trim($input['fullName']);
-    $phone = trim($input['phone']);
-    $address = trim($input['address']);
-    $cart_items = $input['cart'];
-    $total_amount = floatval($input['total']);
-    
-    // Validate cart is not empty
-    if (empty($cart_items) || !is_array($cart_items)) {
-        throw new Exception("Cart is empty or invalid");
-    }
-    
-    // Validate total amount
-    if ($total_amount <= 0) {
-        throw new Exception("Invalid total amount");
-    }
-    
-    // Generate unique order number
-    $order_number = 'ORD' . date('Ymd') . sprintf('%04d', rand(1000, 9999));
-    
-    // Check if order number already exists (unlikely but better to check)
-    $checkOrderStmt = $conn->prepare("SELECT id FROM orders WHERE order_number = ?");
-    $checkOrderStmt->bind_param("s", $order_number);
-    $checkOrderStmt->execute();
-    
-    if ($checkOrderStmt->get_result()->num_rows > 0) {
-        // Generate a new one if collision
-        $order_number = 'ORD' . date('Ymd') . sprintf('%04d', rand(1000, 9999)) . rand(10, 99);
-    }
-    $checkOrderStmt->close();
     
     // Start transaction
     $conn->begin_transaction();
     
-    // Set payment status based on payment method
-    $payment_status = ($payment_method === 'cod') ? 'pending' : 'pending';
-    
-    // Insert main order record
-    $orderStmt = $conn->prepare("
-        INSERT INTO orders (
-            user_id, order_number, shipping_name, shipping_phone, shipping_address, 
-            total_amount, status, payment_method, notes
-        ) VALUES (?, ?, ?, ?, ?, ?, 'pending', ?, ?)
-    ");
-    
-    $orderStmt->bind_param("issssdss", 
-        $user_id, $order_number, $full_name, $phone, $address, $total_amount,
-        $payment_method, $notes
-    );
-    
-    if (!$orderStmt->execute()) {
-        throw new Exception("Failed to create order: " . $orderStmt->error);
-    }
-    
-    $order_id = $conn->insert_id;
-    $orderStmt->close();
-    
-    // Insert order items (use NULL for product_id if product doesn't exist in database)
-    $itemStmt = $conn->prepare("
-        INSERT INTO order_items (
-            order_id, product_id, product_name, product_price, quantity, subtotal
-        ) VALUES (?, ?, ?, ?, ?, ?)
-    ");
-    
-    foreach ($cart_items as $item) {
-        $product_name = $item['name'];
-        $product_code = isset($item['id']) ? $item['id'] : null;
-        $quantity = intval($item['quantity']);
-        $price = floatval($item['price']);
-        $subtotal = $quantity * $price;
+    try {
+        // Create order
+        $stmt = $conn->prepare("INSERT INTO orders (user_id, name, email, phone, address, city, state, zip, payment_method, status, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending', NOW())");
+        $stmt->bind_param("issssssss", $user_id, $name, $email, $phone, $address, $city, $state, $zip, $payment_method);
+        $stmt->execute();
         
-        // Try to find existing product by product_code first, then by name
-        $product_id = null;
-        if ($product_code) {
-            $findProductStmt = $conn->prepare("SELECT id FROM products WHERE product_code = ? LIMIT 1");
-            $findProductStmt->bind_param("s", $product_code);
-            $findProductStmt->execute();
-            $productResult = $findProductStmt->get_result();
+        // Get order ID
+        $order_id = $conn->insert_id;
+        
+        // Get cart items
+        $cart_query = $conn->prepare("SELECT c.product_id, c.quantity, p.price, p.name, p.stock FROM cart c JOIN products p ON c.product_id = p.id WHERE c.user_id = ?");
+        $cart_query->bind_param("i", $user_id);
+        $cart_query->execute();
+        $cart_result = $cart_query->get_result();
+        
+        $total_amount = 0;
+        
+        // Check if cart is empty
+        if ($cart_result->num_rows === 0) {
+            throw new Exception("Your cart is empty.");
+        }
+        
+        // Process each cart item
+        while ($item = $cart_result->fetch_assoc()) {
+            $product_id = $item['product_id'];
+            $quantity = $item['quantity'];
+            $price = $item['price'];
+            $product_name = $item['name'];
+            $current_stock = $item['stock'];
             
-            if ($productResult->num_rows > 0) {
-                $product_id = $productResult->fetch_assoc()['id'];
+            // Check if enough stock
+            if ($quantity > $current_stock) {
+                throw new Exception("Not enough stock for {$product_name}. Only {$current_stock} available.");
             }
-            $findProductStmt->close();
-        }
-        
-        // If not found by product_code, try by name
-        if ($product_id === null) {
-            $findProductStmt = $conn->prepare("SELECT id FROM products WHERE name = ? LIMIT 1");
-            $findProductStmt->bind_param("s", $product_name);
-            $findProductStmt->execute();
-            $productResult = $findProductStmt->get_result();
             
-            if ($productResult->num_rows > 0) {
-                $product_id = $productResult->fetch_assoc()['id'];
-            }
-            $findProductStmt->close();
+            // Calculate item total
+            $item_total = $price * $quantity;
+            $total_amount += $item_total;
+            
+            // Add to order items
+            $item_stmt = $conn->prepare("INSERT INTO order_items (order_id, product_id, quantity, price, total) VALUES (?, ?, ?, ?, ?)");
+            $item_stmt->bind_param("iiidi", $order_id, $product_id, $quantity, $price, $item_total);
+            $item_stmt->execute();
+            
+            // Update product stock
+            $new_stock = $current_stock - $quantity;
+            $stock_stmt = $conn->prepare("UPDATE products SET stock = ? WHERE id = ?");
+            $stock_stmt->bind_param("ii", $new_stock, $product_id);
+            $stock_stmt->execute();
         }
         
-        if ($product_id === null) {
-            $itemStmt->bind_param("issidd", 
-                $order_id, $product_id, $product_name, $price, $quantity, $subtotal
-            );
-        } else {
-            $itemStmt->bind_param("iisidd", 
-                $order_id, $product_id, $product_name, $price, $quantity, $subtotal
-            );
-        }
+        // Update order with total amount
+        $update_order = $conn->prepare("UPDATE orders SET total_amount = ? WHERE id = ?");
+        $update_order->bind_param("di", $total_amount, $order_id);
+        $update_order->execute();
         
-        if (!$itemStmt->execute()) {
-            throw new Exception("Failed to add order item: " . $itemStmt->error);
-        }
+        // Clear user's cart
+        $clear_cart = $conn->prepare("DELETE FROM cart WHERE user_id = ?");
+        $clear_cart->bind_param("i", $user_id);
+        $clear_cart->execute();
+        
+        // Commit transaction
+        $conn->commit();
+        
+        // Set success response
+        $response['success'] = true;
+        $response['message'] = 'Order placed successfully!';
+        $response['order_id'] = $order_id;
+        
+    } catch (Exception $e) {
+        // Rollback transaction on error
+        $conn->rollback();
+        $response['message'] = 'Error: ' . $e->getMessage();
     }
-    $itemStmt->close();
-    
-    // Commit transaction
-    $conn->commit();
-    
-    // Get user email for confirmation
-    $userStmt = $conn->prepare("SELECT email FROM users WHERE id = ?");
-    $userStmt->bind_param("i", $user_id);
-    $userStmt->execute();
-    $userResult = $userStmt->get_result();
-    $userEmail = $userResult->fetch_assoc()['email'] ?? null;
-    $userStmt->close();
-    
-    // Send order confirmation email
-    if ($userEmail) {
-        try {
-            require_once 'email_config.php';
-            $emailSender = new EmailSender();
-            
-            $orderData = [
-                'order_number' => $order_number,
-                'customer_name' => $full_name,
-                'phone' => $phone,
-                'shipping_address' => $address,
-                'payment_method' => $payment_method,
-                'items' => $cart_items,
-                'total' => $total_amount
-            ];
-            
-            $emailSender->sendOrderConfirmationEmail($userEmail, $orderData);
-        } catch (Exception $emailError) {
-            // Log email error but don't fail the order
-            error_log('Failed to send order confirmation email: ' . $emailError->getMessage());
-        }
-    }
-    
-    // Send success response
-    echo json_encode([
-        'success' => true,
-        'message' => 'Order placed successfully!',
-        'order_id' => $order_id,
-        'order_number' => $order_number,
-        'redirect' => 'my_orders.php'
-    ]);
-    
-} catch (Exception $e) {
-    // Rollback transaction on error
-    $conn->rollback();
-    
-    http_response_code(400);
-    echo json_encode([
-        'success' => false,
-        'message' => $e->getMessage()
-    ]);
-    
-} finally {
-    $conn->close();
 }
+
+// Return JSON response
+header('Content-Type: application/json');
+echo json_encode($response);
 ?>
