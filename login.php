@@ -1,16 +1,8 @@
 <?php
 session_start(); // start session for login tracking
+require_once __DIR__ . '/config/connection.php';
 
-$host = "localhost";
-$user = "root";
-$pass = "";
-$db   = "vedalife";
-
-$conn = new mysqli($host, $user, $pass, $db);
-
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+// Connection provided by config/connection.php
 
 if ($_SERVER["REQUEST_METHOD"] == "POST") {
     $username = $_POST['username'] ?? '';

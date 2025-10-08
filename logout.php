@@ -4,12 +4,7 @@ session_start();
 // Check if it's an admin logout for logging purposes
 if (isset($_SESSION['admin_id']) && !empty($_SESSION['admin_id'])) {
     // Log admin logout activity
-    $host = "localhost";
-    $user = "root";
-    $pass = "";
-    $db = "vedalife";
-    
-    $conn = new mysqli($host, $user, $pass, $db);
+    require_once __DIR__ . '/config/connection.php';
     
     if (!$conn->connect_error) {
         $logStmt = $conn->prepare("INSERT INTO admin_activity_log (admin_id, action, description, ip_address, user_agent) VALUES (?, ?, ?, ?, ?)");

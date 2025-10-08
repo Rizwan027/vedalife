@@ -1,6 +1,7 @@
 <?php
 // Include authentication check
 require_once 'auth_check.php';
+require_once __DIR__ . '/config/connection.php';
 
 // Require user to be logged in to book appointments
 if (!isUserLoggedIn()) {
@@ -9,21 +10,7 @@ if (!isUserLoggedIn()) {
     exit();
 }
 
-// Database connection details
-$servername = "localhost";
-$username = "root";
-$password = "";  // set your MySQL root password if any
-$dbname = "vedalife";
-
-// Create connection
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-// Check connection
-if ($conn->connect_error) {
-    http_response_code(500);
-    echo "Connection failed: " . $conn->connect_error;
-    exit();
-}
+// DB connection is provided by config/connection.php as $conn
 
 // Verify that the request is POST
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -40,11 +27,12 @@ $name = trim($_POST['name'] ?? '');
 $email = trim($_POST['email'] ?? '');
 $phone = trim($_POST['phone'] ?? '');
 $preferred_date = $_POST['date'] ?? ''; // Note: using 'date' from form, not 'preferred_date'
+$preferred_time = $_POST['preferred_time'] ?? '';
 $service = $_POST['service'] ?? '';
 $notes = trim($_POST['notes'] ?? '');
 
 // Basic validation
-if (empty($name) || empty($email) || empty($phone) || empty($preferred_date) || empty($service)) {
+if (empty($name) || empty($email) || empty($phone) || empty($preferred_date) || empty($preferred_time) || empty($service)) {
     http_response_code(400);
     echo "Error: All required fields must be filled.";
     exit();
@@ -57,9 +45,34 @@ if (strtotime($preferred_date) < strtotime('today')) {
     exit();
 }
 
-// Prepare and execute query (fixed SQL injection)
-$stmt = $conn->prepare("INSERT INTO booking (user_id, name, email, phone, preferred_date, service, notes) VALUES (?, ?, ?, ?, ?, ?, ?)");
-$stmt->bind_param("issssss", $user_id, $name, $email, $phone, $preferred_date, $service, $notes);
+// Determine if booking table has preferred_time column (backward compatibility)
+$hasPreferredTime = false;
+$colCheck = $conn->query("SHOW COLUMNS FROM `booking` LIKE 'preferred_time'");
+if ($colCheck) {
+    $hasPreferredTime = ($colCheck->num_rows > 0);
+    $colCheck->free();
+}
+
+if ($hasPreferredTime) {
+    $sql = "INSERT INTO `booking` (`user_id`, `name`, `email`, `phone`, `service`, `preferred_date`, `preferred_time`, `notes`) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        http_response_code(500);
+        echo "❌ Error preparing statement: " . $conn->error;
+        exit();
+    }
+    $stmt->bind_param("isssssss", $user_id, $name, $email, $phone, $service, $preferred_date, $preferred_time, $notes);
+} else {
+    // Fallback for DBs without preferred_time column
+    $sql = "INSERT INTO `booking` (`user_id`, `name`, `email`, `phone`, `service`, `preferred_date`, `notes`) VALUES (?, ?, ?, ?, ?, ?, ?)";
+    $stmt = $conn->prepare($sql);
+    if (!$stmt) {
+        http_response_code(500);
+        echo "❌ Error preparing statement: " . $conn->error;
+        exit();
+    }
+    $stmt->bind_param("issssss", $user_id, $name, $email, $phone, $service, $preferred_date, $notes);
+}
 
 if ($stmt->execute()) {
     echo "✅ Appointment booked successfully! We'll contact you soon to confirm your booking.";

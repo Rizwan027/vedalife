@@ -1,21 +1,40 @@
 <?php
 // My Bookings Page
+// Prevent browser caching to ensure fresh user data
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
 require_once 'auth_check.php';
 requireLogin();
+require_once __DIR__ . '/config/connection.php';
 
 $currentUser = getCurrentUser();
 $user_id = $currentUser['id'];
 
-// Database connection
-$host = "localhost";
-$user = "root";
-$pass = "";
-$db   = "vedalife";
-
-$conn = new mysqli($host, $user, $pass, $db);
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+// Debug: Add session validation to ensure we have the correct user
+if (empty($user_id) || !is_numeric($user_id)) {
+    // Log potential session issue
+    error_log("VedaLife - Invalid user_id in my_bookings.php: " . print_r($currentUser, true));
+    // Redirect to login to refresh session
+    header("Location: SignUp_LogIn_Form.html?error=session_expired");
+    exit();
 }
+
+// Handle refresh request to get fresh user data
+if (isset($_GET['refresh']) && $_GET['refresh'] === '1') {
+    // Refresh user data from database
+    $refreshedUser = refreshCurrentUser();
+    if ($refreshedUser) {
+        $currentUser = $refreshedUser;
+        $user_id = $currentUser['id'];
+    }
+    // Redirect to clean URL after refresh
+    header("Location: my_bookings.php");
+    exit();
+}
+
+// DB connection is provided by config/connection.php as $conn
 
 // Get filter parameters
 $status_filter = $_GET['status'] ?? 'all';
@@ -309,8 +328,14 @@ $stats = $statsQuery->get_result()->fetch_assoc();
         <div class="container">
             <div class="row">
                 <div class="col-12">
-                    <h2><i class="fa-solid fa-calendar-check"></i> My Bookings</h2>
+                    <h2><i class="fa-solid fa-calendar-check"></i> My Bookings - <?php echo htmlspecialchars($currentUser['username']); ?></h2>
                     <p class="mb-0">Manage and track all your appointments</p>
+                    <!-- Debug: Show current user info -->
+                    <?php if (isset($_GET['debug']) && $_GET['debug'] === '1'): ?>
+                        <div class="alert alert-info mt-2">
+                            <small><strong>Debug Info:</strong> User ID: <?php echo $user_id; ?> | Username: <?php echo htmlspecialchars($currentUser['username']); ?> | Session ID: <?php echo session_id(); ?></small>
+                        </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>
@@ -324,6 +349,7 @@ $stats = $statsQuery->get_result()->fetch_assoc();
             <a href="my_orders.php"><i class="fa-solid fa-shopping-bag"></i> My Orders</a>
             <a href="edit_profile.php"><i class="fa-solid fa-user-edit"></i> Edit Profile</a>
             <a href="change_password.php"><i class="fa-solid fa-key"></i> Change Password</a>
+            <a href="my_bookings.php?refresh=1" class="text-muted" style="font-size: 0.8rem;"><i class="fa-solid fa-refresh"></i> Refresh Data</a>
         </div>
 
         <!-- Statistics -->

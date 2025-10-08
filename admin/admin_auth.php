@@ -2,18 +2,50 @@
 // Admin Authentication System for VedaLife
 session_start();
 
-// Database connection
+// Database connection (robust)
 function getAdminDbConnection() {
-    $host = "localhost";
-    $user = "root";
-    $pass = "";
-    $db = "vedalife";
-    
-    $conn = new mysqli($host, $user, $pass, $db);
-    if ($conn->connect_error) {
-        die("Connection failed: " . $conn->connect_error);
+    // Try legacy admin connection first
+    @require_once __DIR__ . '/../config/connection.php';
+    if (isset($conn) && $conn instanceof mysqli && !$conn->connect_error) {
+        return $conn;
     }
-    return $conn;
+
+    // Fallback to centralized bootstrap wrapper that returns a mysqli
+    @require_once __DIR__ . '/../includes/bootstrap.php';
+    if (function_exists('getDbConnection')) {
+        $dbc = getDbConnection();
+        if ($dbc instanceof mysqli && !$dbc->connect_error) {
+            return $dbc;
+        }
+    }
+
+    // As a last resort, try the simple root connection
+    @require_once __DIR__ . '/../connection.php';
+    if (isset($conn) && $conn instanceof mysqli && !$conn->connect_error) {
+        return $conn;
+    }
+
+    // Final direct attempt with sane defaults / env overrides
+    try {
+        $host = getenv('VEDALIFE_DB_HOST') ?: 'localhost';
+        $user = getenv('VEDALIFE_DB_USER') ?: 'root';
+        $pass = getenv('VEDALIFE_DB_PASS') ?: '';
+        $db   = getenv('VEDALIFE_DB_NAME') ?: 'vedalife';
+        $port = getenv('VEDALIFE_DB_PORT') ?: null;
+        if ($port) {
+            $dbc = @new mysqli($host, $user, $pass, $db, (int)$port);
+        } else {
+            $dbc = @new mysqli($host, $user, $pass, $db);
+        }
+        if ($dbc instanceof mysqli && !$dbc->connect_error) {
+            return $dbc;
+        }
+    } catch (Throwable $e) {
+        // ignore, fall through to exception below
+    }
+
+    // If all methods failed, throw a clear error
+    throw new Exception('Admin DB connection could not be established.');
 }
 
 // Check if admin is logged in
@@ -33,7 +65,6 @@ function getCurrentAdmin() {
     $stmt->execute();
     $result = $stmt->get_result();
     $admin = $result->fetch_assoc();
-    $conn->close();
     
     return $admin;
 }
@@ -71,7 +102,6 @@ function logAdminActivity($action, $description = null) {
     
     $stmt->bind_param("issss", $admin_id, $action, $description, $ip, $user_agent);
     $stmt->execute();
-    $conn->close();
 }
 
 // Admin login function
@@ -97,8 +127,6 @@ function adminLogin($username, $password) {
             $updateStmt->bind_param("i", $admin['id']);
             $updateStmt->execute();
             
-            $conn->close();
-            
             // Log login activity
             logAdminActivity('login', 'Admin logged in successfully');
             
@@ -106,7 +134,6 @@ function adminLogin($username, $password) {
         }
     }
     
-    $conn->close();
     return false;
 }
 
@@ -154,7 +181,6 @@ function getDashboardStats() {
     
     $result = $conn->query($query);
     $stats = $result->fetch_assoc();
-    $conn->close();
     
     return $stats;
 }

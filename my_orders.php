@@ -1,18 +1,9 @@
 <?php
 session_start();
 require_once 'auth_check.php';
+require_once __DIR__ . '/config/connection.php';
 
-// Database connection
-$servername = "localhost";
-$username = "root";
-$password = "";
-$dbname = "vedalife";
-
-$conn = new mysqli($servername, $username, $password, $dbname);
-
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
-}
+// DB connection is provided by config/connection.php as $conn
 
 $user_id = $_SESSION['user_id'];
 

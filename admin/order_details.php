@@ -143,7 +143,7 @@ $conn->close();
                         </div>
                     </div>
                 </td>
-                <td><?php echo formatCurrency($item['product_price']); ?></td>
+                <td><?php echo formatCurrency($item['price']); ?></td>
                 <td>
                     <span class="badge bg-secondary"><?php echo $item['quantity']; ?></span>
                 </td>

@@ -1,20 +1,18 @@
 <?php
 session_start();
+require_once __DIR__ . '/config/connection.php';
 
 // Check if user is logged in for cart functionality
 $isLoggedIn = isset($_SESSION['user_id']) && !empty($_SESSION['user_id']);
 
 // Fetch active products from database
 $products = [];
-$mysqli = @new mysqli('localhost', 'root', '', 'vedalife');
-if (!$mysqli->connect_error) {
-  $result = $mysqli->query("SELECT id, name, description, price, image, category, stock, created_at FROM products WHERE is_active = 1 ORDER BY name ASC");
-  if ($result) {
-    while ($row = $result->fetch_assoc()) {
-      $products[] = $row;
-    }
-    $result->free();
+$result = $conn->query("SELECT id, name, description, price, image, category, stock, created_at FROM products WHERE is_active = 1 ORDER BY name ASC");
+if ($result) {
+  while ($row = $result->fetch_assoc()) {
+    $products[] = $row;
   }
+  $result->free();
 }
 ?>
 <!DOCTYPE html>

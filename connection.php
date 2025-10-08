@@ -1,5 +1,5 @@
 <?php
-// Database configuration for VedaLife
+// Simple Database configuration for VedaLife
 $host = "localhost";
 $user = "root";
 $pass = "";

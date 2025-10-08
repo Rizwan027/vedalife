@@ -1,21 +1,27 @@
 <?php
 // User Profile Dashboard
+// Prevent browser caching to ensure fresh user data
+header("Cache-Control: no-cache, no-store, must-revalidate");
+header("Pragma: no-cache");
+header("Expires: 0");
+
 require_once 'auth_check.php';
 requireLogin();
+require_once __DIR__ . '/config/connection.php';
 
 $currentUser = getCurrentUser();
 $user_id = $currentUser['id'];
 
-// Database connection
-$host = "localhost";
-$user = "root";
-$pass = "";
-$db   = "vedalife";
-
-$conn = new mysqli($host, $user, $pass, $db);
-if ($conn->connect_error) {
-    die("Connection failed: " . $conn->connect_error);
+// Debug: Add session validation to ensure we have the correct user
+if (empty($user_id) || !is_numeric($user_id)) {
+    // Log potential session issue
+    error_log("VedaLife - Invalid user_id in profile.php: " . print_r($currentUser, true));
+    // Redirect to login to refresh session
+    header("Location: SignUp_LogIn_Form.html?error=session_expired");
+    exit();
 }
+
+// DB connection is provided by config/connection.php as $conn
 
 // Get user details
 $userQuery = $conn->prepare("SELECT * FROM users WHERE id = ?");
@@ -423,6 +429,13 @@ $upcomingBookings = $upcomingQuery->get_result();
             gap: 1.5rem;
         }
         
+        @media (min-width: 992px) {
+            .quick-actions {
+                grid-template-columns: repeat(4, 1fr);
+                gap: 1rem;
+            }
+        }
+        
         .action-btn {
             padding: 1.5rem 1rem;
             border-radius: 15px;
@@ -574,7 +587,9 @@ $upcomingBookings = $upcomingQuery->get_result();
     <div class="container my-4">
         <!-- Profile Navigation -->
         <div class="profile-nav">
-            <a href="profile.php" class="active"><i class="fa-solid fa-home"></i> Dashboard</a>
+            <a href="profile.php" class="active"><i class="fa-solid fa-dashboard"></i> Dashboard</a>
+            <a href="my_bookings.php"><i class="fa-solid fa-calendar-check"></i> My Bookings</a>
+            <a href="my_orders.php"><i class="fa-solid fa-shopping-bag"></i> My Orders</a>
             <a href="appointment.php"><i class="fa-solid fa-calendar-plus"></i> Book Appointment</a>
             <a href="products.php"><i class="fa-solid fa-shopping-cart"></i> Shop Products</a>
         </div>
@@ -584,9 +599,17 @@ $upcomingBookings = $upcomingQuery->get_result();
         <div class="section-card">
             <h4 class="section-title"><i class="fa-solid fa-zap"></i> Quick Actions</h4>
             <div class="quick-actions">
+                <a href="my_bookings.php" class="action-btn">
+                    <i class="fa-solid fa-calendar-check mb-2"></i><br>
+                    View My Appointments
+                </a>
                 <a href="appointment.php" class="action-btn">
                     <i class="fa-solid fa-calendar-plus mb-2"></i><br>
                     Book Appointment
+                </a>
+                <a href="my_orders.php" class="action-btn">
+                    <i class="fa-solid fa-shopping-bag mb-2"></i><br>
+                    My Orders
                 </a>
                 <a href="products.php" class="action-btn">
                     <i class="fa-solid fa-shopping-cart mb-2"></i><br>
@@ -630,7 +653,11 @@ $upcomingBookings = $upcomingQuery->get_result();
                                             </small>
                                             <small class="text-muted d-block">
                                                 <i class="fa-solid fa-clock"></i> 
-                                                <strong>Time:</strong> <?php echo htmlspecialchars($booking['preferred_time']); ?>
+                                                <strong>Time:</strong> <?php echo !empty($booking['preferred_time']) ? date('g:i A', strtotime($booking['preferred_time'])) : 'Not specified'; ?>
+                                            </small>
+                                            <small class="text-muted d-block">
+                                                <i class="fa-solid fa-id-badge"></i> 
+                                                <strong>Booking ID:</strong> #<?php echo $booking['id']; ?>
                                             </small>
                                         </div>
                                         <div class="col-md-6">

@@ -843,6 +843,21 @@ $currentUser = getCurrentUser();
           </div>
 
           <div class="form-group">
+            <select name="preferred_time" required>
+              <option value="">Select Preferred Time</option>
+              <option value="09:00:00">9:00 AM</option>
+              <option value="10:00:00">10:00 AM</option>
+              <option value="11:00:00">11:00 AM</option>
+              <option value="12:00:00">12:00 PM</option>
+              <option value="14:00:00">2:00 PM</option>
+              <option value="15:00:00">3:00 PM</option>
+              <option value="16:00:00">4:00 PM</option>
+              <option value="17:00:00">5:00 PM</option>
+            </select>
+            <label>Preferred Time</label>
+          </div>
+
+          <div class="form-group">
             <textarea name="notes" rows="4" placeholder="Tell us about your health concerns, any specific requirements, or questions you might have..."></textarea>
             <label>Additional Notes & Health Information (Optional)</label>
           </div>
@@ -880,6 +895,10 @@ $currentUser = getCurrentUser();
             <div class="review-item">
               <div class="review-label"><i class="fas fa-calendar-alt"></i> Date:</div>
               <div class="review-value" id="review-date"></div>
+            </div>
+            <div class="review-item">
+              <div class="review-label"><i class="fas fa-clock"></i> Time:</div>
+              <div class="review-value" id="review-time"></div>
             </div>
             <div class="review-item">
               <div class="review-label"><i class="fas fa-sticky-note"></i> Notes:</div>
@@ -1156,6 +1175,18 @@ $currentUser = getCurrentUser();
         });
       } else {
         document.getElementById('review-date').textContent = 'Not selected';
+      }
+      
+      const timeValue = formData.get('preferred_time');
+      if (timeValue) {
+        const time = new Date(`2000-01-01 ${timeValue}`);
+        document.getElementById('review-time').textContent = time.toLocaleTimeString('en-US', {
+          hour: 'numeric',
+          minute: '2-digit',
+          hour12: true
+        });
+      } else {
+        document.getElementById('review-time').textContent = 'Not selected';
       }
       
       document.getElementById('review-notes').textContent = formData.get('notes') || 'No additional notes';
